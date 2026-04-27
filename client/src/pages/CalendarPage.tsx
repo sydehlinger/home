@@ -9,7 +9,7 @@ export default function CalendarPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ summary: '', description: '', start: '', end: '', allDay: false });
 
-  const { data: events = [], isLoading } = useQuery<any[]>({
+  const { data: events = [], isLoading, isError, error } = useQuery<any[]>({
     queryKey: ['calendar'],
     queryFn: () => api.get('/calendar/events'),
   });
@@ -61,6 +61,12 @@ export default function CalendarPage() {
       {isLoading ? (
         <div className="space-y-2">
           {[...Array(5)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-gray-800 animate-pulse" />)}
+        </div>
+      ) : isError ? (
+        <div className="rounded-xl border border-red-900 bg-red-950/40 p-6 space-y-2">
+          <p className="text-sm font-medium text-red-400">Failed to load calendar events</p>
+          <p className="text-xs text-red-500">{(error as Error)?.message}</p>
+          <p className="text-xs text-gray-500">Try signing out and signing back in to re-authorize Google Calendar access.</p>
         </div>
       ) : events.length === 0 ? (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">

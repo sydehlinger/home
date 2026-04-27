@@ -13,6 +13,7 @@ import packagesRouter from './routes/packages';
 import notesRouter from './routes/notes';
 import groceryRouter from './routes/grocery';
 import mealsRouter from './routes/meals';
+import recipesRouter from './routes/recipes';
 import sharedRouter from './routes/shared';
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/packages', packagesRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/grocery', groceryRouter);
 app.use('/api/meals', mealsRouter);
+app.use('/api/recipes', recipesRouter);
 app.use('/api/shared', sharedRouter);
 
 const PORT = process.env.PORT ?? 3001;

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import {
-  Calendar, CheckSquare, DollarSign, FolderKanban, FileText, UtensilsCrossed,
+  Calendar, CheckSquare, DollarSign, FolderKanban, FileText, UtensilsCrossed, Menu,
 } from 'lucide-react';
 import { format, parseISO, formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { Link } from 'react-router-dom';
 import WeatherWidget from '../components/WeatherWidget';
+import { useSidebar } from '../lib/sidebarContext';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const;
 const MEAL_LABELS: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
@@ -26,14 +27,20 @@ export default function DashboardPage() {
   const activeProjects = (projects as any[]).filter((p) => p.status === 'active').slice(0, 4);
   const recentNotes = (notes as any[]).slice(0, 3);
 
+  const openSidebar = useSidebar();
   const today = format(new Date(), 'EEEE, MMMM d');
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">{today}</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Here's what's going on</p>
+        <div className="flex items-center gap-3">
+          <button className="md:hidden text-gray-400 hover:text-white mt-1" onClick={openSidebar}>
+            <Menu size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-semibold text-white">{today}</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Here's what's going on</p>
+          </div>
         </div>
         <WeatherWidget />
       </div>

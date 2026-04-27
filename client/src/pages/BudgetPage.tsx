@@ -90,6 +90,12 @@ export default function BudgetPage() {
 
       {isLoading && <div className="h-64 rounded-xl bg-gray-800 animate-pulse" />}
       {error && <p className="text-sm text-red-400">Failed to load spreadsheet. Check the ID and sharing settings.</p>}
+      {!isLoading && !error && data && values.length === 0 && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-center space-y-1">
+          <p className="text-sm text-gray-400">Sheet connected but no data found.</p>
+          <p className="text-xs text-gray-600">Make sure data starts at cell A1{sheetTab ? ` on the "${sheetTab}" tab` : ''}, or try a different tab name.</p>
+        </div>
+      )}
 
       {chartData.length > 0 && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">

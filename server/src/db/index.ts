@@ -68,6 +68,15 @@ db.exec(`
     updated_at INTEGER DEFAULT (unixepoch())
   );
 
+  CREATE TABLE IF NOT EXISTS recipes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL DEFAULT 'Untitled Recipe',
+    content TEXT NOT NULL DEFAULT '',
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+
   CREATE TABLE IF NOT EXISTS packages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
@@ -80,5 +89,8 @@ db.exec(`
     created_at INTEGER DEFAULT (unixepoch())
   );
 `);
+
+// Migrations for columns added after initial schema
+try { db.exec(`ALTER TABLE recipes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`); } catch {}
 
 export default db;
