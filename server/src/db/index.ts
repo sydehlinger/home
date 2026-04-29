@@ -88,6 +88,16 @@ db.exec(`
     delivered_at INTEGER,
     created_at INTEGER DEFAULT (unixepoch())
   );
+
+  CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    category TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
 `);
 
 // Migrations for columns added after initial schema

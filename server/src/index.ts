@@ -15,6 +15,7 @@ import groceryRouter from './routes/grocery';
 import mealsRouter from './routes/meals';
 import recipesRouter from './routes/recipes';
 import sharedRouter from './routes/shared';
+import budgetRouter from './routes/budget';
 
 const app = express();
 const FileSession = FileStore(session);
@@ -42,6 +43,7 @@ app.use('/api/grocery', groceryRouter);
 app.use('/api/meals', mealsRouter);
 app.use('/api/recipes', recipesRouter);
 app.use('/api/shared', sharedRouter);
+app.use('/api/budget', budgetRouter);
 
 const PORT = process.env.PORT ?? 3001;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
