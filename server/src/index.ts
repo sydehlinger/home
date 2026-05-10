@@ -16,12 +16,13 @@ import mealsRouter from './routes/meals';
 import recipesRouter from './routes/recipes';
 import sharedRouter from './routes/shared';
 import budgetRouter from './routes/budget';
+import booksRouter from './routes/books';
 
 const app = express();
 const FileSession = FileStore(session);
 
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(
   session({
     store: new FileSession({ path: './sessions', ttl: 7 * 24 * 60 * 60, reapInterval: 3600 }) as any,
@@ -44,6 +45,7 @@ app.use('/api/meals', mealsRouter);
 app.use('/api/recipes', recipesRouter);
 app.use('/api/shared', sharedRouter);
 app.use('/api/budget', budgetRouter);
+app.use('/api/books', booksRouter);
 
 const PORT = process.env.PORT ?? 3001;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

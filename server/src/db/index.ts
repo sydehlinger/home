@@ -98,9 +98,67 @@ db.exec(`
     category TEXT NOT NULL,
     created_at INTEGER DEFAULT (unixepoch())
   );
+
+  CREATE TABLE IF NOT EXISTS budget_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'withdrawal',
+    color TEXT NOT NULL DEFAULT '#6366f1',
+    created_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(user_id, name)
+  );
+
+  CREATE TABLE IF NOT EXISTS books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    author TEXT,
+    isbn TEXT,
+    formats TEXT NOT NULL DEFAULT '["physical"]',
+    status TEXT NOT NULL DEFAULT 'to-read',
+    cover_url TEXT,
+    rating REAL,
+    pages INTEGER,
+    notes TEXT,
+    date_finished INTEGER,
+    ownership TEXT NOT NULL DEFAULT 'none',
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
 `);
 
 // Migrations for columns added after initial schema
 try { db.exec(`ALTER TABLE recipes ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`); } catch {}
+
+// books: format (single) -> formats (JSON array)
+try { db.exec(`ALTER TABLE books ADD COLUMN formats TEXT NOT NULL DEFAULT '["physical"]'`); } catch {}
+try { db.exec(`UPDATE books SET formats = json_array(format) WHERE format IS NOT NULL`); } catch {}
+try { db.exec(`ALTER TABLE books DROP COLUMN format`); } catch {}
+
+// books: owned column. Backfill heuristic: to-read books are wishlist, others are owned.
+// Both statements run together; if ALTER throws (column exists), UPDATE is skipped — preserves user edits.
+try {
+  db.exec(`ALTER TABLE books ADD COLUMN owned INTEGER NOT NULL DEFAULT 1`);
+  db.exec(`UPDATE books SET owned = 0 WHERE status = 'to-read'`);
+} catch {}
+
+// books: owned (bool) -> ownership (tri-state: 'owned' | 'tbr' | 'none').
+// Atomic block: if ALTER fails (column exists), no other statements run.
+try {
+  db.exec(`ALTER TABLE books ADD COLUMN ownership TEXT NOT NULL DEFAULT 'none'`);
+  db.exec(`
+    UPDATE books SET ownership = CASE
+      WHEN owned = 1            THEN 'owned'
+      WHEN status = 'to-read'   THEN 'tbr'
+      ELSE                           'none'
+    END
+  `);
+  db.exec(`ALTER TABLE books DROP COLUMN owned`);
+} catch {}
+
+// books: collapse ownership 'wishlist' / 'tbr' -> 'none' (TBR now derives from status, not ownership)
+// Idempotent: no-op once no rows have those legacy values.
+try { db.exec(`UPDATE books SET ownership = 'none' WHERE ownership IN ('wishlist', 'tbr')`); } catch {}
 
 export default db;

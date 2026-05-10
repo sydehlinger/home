@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Calendar, CheckSquare, DollarSign, FolderKanban,
-  Package, FileText, Utensils,
+  Package, FileText, Utensils, BookOpen,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -19,6 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/packages', label: 'Packages', icon: Package },
   { to: '/notes', label: 'Notes', icon: FileText },
   { to: '/kitchen', label: 'Kitchen', icon: Utensils },
+  { to: '/library', label: 'Library', icon: BookOpen },
 ];
 
 const STORAGE_KEY = 'nav-order';

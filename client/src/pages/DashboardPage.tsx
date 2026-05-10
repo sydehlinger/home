@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import {
-  Calendar, CheckSquare, DollarSign, FolderKanban, FileText, UtensilsCrossed, Menu,
+  Calendar, CheckSquare, DollarSign, FolderKanban, FileText, UtensilsCrossed, Menu, BookOpen,
 } from 'lucide-react';
 import { format, parseISO, formatDistanceToNow, fromUnixTime } from 'date-fns';
 import { Link } from 'react-router-dom';
 import WeatherWidget from '../components/WeatherWidget';
 import { useSidebar } from '../lib/sidebarContext';
+import { parseBook, type BookRecord } from '../lib/books';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const;
 const MEAL_LABELS: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
@@ -16,6 +18,10 @@ export default function DashboardPage() {
   const { data: taskLists = [] } = useQuery<any[]>({ queryKey: ['taskLists'], queryFn: () => api.get('/tasks/lists') });
   const { data: projects = [] } = useQuery<any[]>({ queryKey: ['projects'], queryFn: () => api.get('/projects') });
   const { data: notes = [] } = useQuery<any[]>({ queryKey: ['notes'], queryFn: () => api.get('/notes') });
+  const { data: books = [] } = useQuery<BookRecord[]>({
+    queryKey: ['books'],
+    queryFn: () => api.get<any[]>('/books').then(rows => rows.map(parseBook)),
+  });
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const { data: todayMeals = [] } = useQuery<any[]>({
@@ -26,6 +32,7 @@ export default function DashboardPage() {
   const upcomingEvents = events.slice(0, 3);
   const activeProjects = (projects as any[]).filter((p) => p.status === 'active').slice(0, 4);
   const recentNotes = (notes as any[]).slice(0, 3);
+  const currentlyReading = books.filter((b) => b.status === 'reading');
 
   const openSidebar = useSidebar();
   const today = format(new Date(), 'EEEE, MMMM d');
@@ -52,6 +59,31 @@ export default function DashboardPage() {
         <StatCard icon={DollarSign} label="Budget" value="View" to="/budget" color="yellow" />
         <StatCard icon={FileText} label="Notes" value={notes.length} to="/notes" color="purple" />
         <StatCard icon={UtensilsCrossed} label="Meal plan" value="View" to="/meals" color="orange" />
+      </div>
+
+      {/* Currently reading */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-gray-300">Currently reading</h2>
+          <Link to="/library" className="text-xs text-brand-400 hover:text-brand-300">View library</Link>
+        </div>
+        {currentlyReading.length === 0 ? (
+          <p className="text-sm text-gray-600">Not reading anything right now.</p>
+        ) : (
+          <div className="flex flex-wrap gap-4">
+            {currentlyReading.map((b) => (
+              <Link
+                key={b.id}
+                to="/library"
+                className="group flex flex-col items-center w-20 gap-1.5"
+              >
+                <BookCover src={b.cover_url} />
+                <p className="text-xs text-gray-200 text-center truncate w-full group-hover:text-white">{b.title}</p>
+                {b.author && <p className="text-[11px] text-gray-500 text-center truncate w-full">{b.author}</p>}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -162,6 +194,19 @@ export default function DashboardPage() {
           </ul>
         </div>
       </div>
+    </div>
+  );
+}
+
+function BookCover({ src }: { src: string | null }) {
+  const [errored, setErrored] = useState(false);
+  useEffect(() => { setErrored(false); }, [src]);
+
+  return (
+    <div className="w-16 h-24 rounded overflow-hidden bg-gray-800 group-hover:ring-2 group-hover:ring-brand-500 transition-all flex items-center justify-center">
+      {src && !errored
+        ? <img src={src} alt="" onError={() => setErrored(true)} className="w-full h-full object-cover" />
+        : <BookOpen size={18} className="text-gray-700" />}
     </div>
   );
 }

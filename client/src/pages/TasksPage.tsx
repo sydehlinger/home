@@ -85,8 +85,28 @@ export default function TasksPage() {
         </div>
       ) : (
         <ul className="space-y-1.5">
-          {tasks.map((t: any) => (
-            <li key={t.id} className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 group">
+          {(() => {
+            const subtasksByParent = new Map<string, any[]>();
+            const topLevel: any[] = [];
+            for (const t of tasks) {
+              if (t.parent) {
+                const arr = subtasksByParent.get(t.parent) ?? [];
+                arr.push(t);
+                subtasksByParent.set(t.parent, arr);
+              } else {
+                topLevel.push(t);
+              }
+            }
+            const ordered: { task: any; indent: boolean }[] = [];
+            for (const t of topLevel) {
+              ordered.push({ task: t, indent: false });
+              for (const sub of subtasksByParent.get(t.id) ?? []) {
+                ordered.push({ task: sub, indent: true });
+              }
+            }
+            return ordered;
+          })().map(({ task: t, indent }) => (
+            <li key={t.id} className={`flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 group${indent ? ' ml-6' : ''}`}>
               <button
                 onClick={() => completeTask.mutate(t.id)}
                 className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-gray-600 hover:border-green-400 hover:bg-green-400/10 transition-colors"

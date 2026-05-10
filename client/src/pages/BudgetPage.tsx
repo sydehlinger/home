@@ -1,42 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
-import { ChevronLeft, ChevronRight, Trash2, Upload, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Upload, X, Plus } from 'lucide-react';
 
-const CATEGORIES = [
-  'Recurring', 'Insurance', 'Utilities', 'Car', 'Subscriptions',
-  'Groceries', 'Eating Out', 'Gas', 'Cats', 'Fun', 'Hobbies',
-  'Clothes/Beauty', 'Other', 'Emergency Savings', 'Down Payment', 'Deposits',
-];
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const CAT_COLORS: Record<string, string> = {
-  Recurring: '#6366f1',
-  Insurance: '#3b82f6',
-  Utilities: '#8b5cf6',
-  Car: '#f97316',
-  Subscriptions: '#ec4899',
-  Groceries: '#10b981',
-  'Eating Out': '#f59e0b',
-  Gas: '#ef4444',
-  Cats: '#14b8a6',
-  Fun: '#a855f7',
-  Hobbies: '#06b6d4',
-  'Clothes/Beauty': '#f472b6',
-  Other: '#6b7280',
-  'Emergency Savings': '#22c55e',
-  'Down Payment': '#0ea5e9',
-  Deposits: '#84cc16',
-};
 
-type Transaction = {
-  id: number;
-  date: string;
-  description: string;
-  amount: number;
-  category: string;
-};
-
+type Category = { id: number; name: string; type: 'withdrawal' | 'deposit'; color: string };
+type Transaction = { id: number; date: string; description: string; amount: number; category: string };
 type CsvData = { headers: string[]; rows: string[][] };
 type Mapping = { date: string; description: string; amount: string; category: string };
 
@@ -89,16 +60,13 @@ function autoDetectMapping(headers: string[]): Mapping {
 function normalizeDate(raw: string): string {
   const s = raw.trim().replace(/^["']|["']$/g, '');
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // MM/DD/YYYY or M/D/YYYY
   const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mdy) return `${mdy[3]}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`;
-  // MM/DD/YY
   const mdyShort = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
   if (mdyShort) {
     const y = Number(mdyShort[3]) > 50 ? `19${mdyShort[3]}` : `20${mdyShort[3]}`;
     return `${y}-${mdyShort[1].padStart(2, '0')}-${mdyShort[2].padStart(2, '0')}`;
   }
-  // Fallback: let Date parse it and convert to ISO
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   return s;
@@ -106,10 +74,7 @@ function normalizeDate(raw: string): string {
 
 function applyMapping(rows: string[][], headers: string[], mapping: Mapping): Transaction[] {
   const idx = (field: string) => headers.indexOf(field);
-  const di = idx(mapping.date);
-  const dsi = idx(mapping.description);
-  const ai = idx(mapping.amount);
-  const ci = idx(mapping.category);
+  const di = idx(mapping.date), dsi = idx(mapping.description), ai = idx(mapping.amount), ci = idx(mapping.category);
   return rows
     .map((row) => ({
       id: 0,
@@ -121,14 +86,9 @@ function applyMapping(rows: string[][], headers: string[], mapping: Mapping): Tr
     .filter((t) => t.date && t.description);
 }
 
-function MappingSelect({
-  label, field, headers, mapping, setMapping,
-}: {
-  label: string;
-  field: keyof Mapping;
-  headers: string[];
-  mapping: Mapping;
-  setMapping: React.Dispatch<React.SetStateAction<Mapping>>;
+function MappingSelect({ label, field, headers, mapping, setMapping }: {
+  label: string; field: keyof Mapping; headers: string[];
+  mapping: Mapping; setMapping: React.Dispatch<React.SetStateAction<Mapping>>;
 }) {
   return (
     <div className="space-y-1">
@@ -146,27 +106,36 @@ function MappingSelect({
 }
 
 export default function BudgetPage() {
-  const [tab, setTab] = useState<'overview' | 'transactions' | 'year'>('overview');
+  const [tab, setTab] = useState<'overview' | 'transactions' | 'year' | 'settings'>('overview');
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(() => new Date().getFullYear());
-  const [form, setForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    description: '',
-    amount: '',
-    category: CATEGORIES[0],
-  });
+  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), description: '', amount: '', category: '' });
+  const [newCat, setNewCat] = useState({ name: '', type: 'withdrawal' as 'withdrawal' | 'deposit', color: '#6366f1' });
 
-  // CSV import state
   const [csvData, setCsvData] = useState<CsvData | null>(null);
   const [mapping, setMapping] = useState<Mapping>({ date: '', description: '', amount: '', category: '' });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const qc = useQueryClient();
 
+  const { data: categoriesData = [] } = useQuery<Category[]>({
+    queryKey: ['budget-categories'],
+    queryFn: () => api.get('/budget/categories'),
+  });
+
+  useEffect(() => {
+    if (categoriesData.length > 0 && !form.category) {
+      setForm((f) => ({ ...f, category: categoriesData[0].name }));
+    }
+  }, [categoriesData]);
+
+  const catColorMap = Object.fromEntries(categoriesData.map((c) => [c.name, c.color]));
+  const depositNames = new Set(categoriesData.filter((c) => c.type === 'deposit').map((c) => c.name));
+
   const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
     queryKey: ['transactions', month],
     queryFn: () => api.get(`/budget?month=${month}`),
-    enabled: tab !== 'year',
+    enabled: tab !== 'year' && tab !== 'settings',
   });
 
   const { data: yearTransactions = [], isLoading: yearLoading } = useQuery<Transaction[]>({
@@ -177,10 +146,7 @@ export default function BudgetPage() {
 
   const addMutation = useMutation({
     mutationFn: (body: typeof form) => api.post('/budget', body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      setForm((f) => ({ ...f, description: '', amount: '' }));
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['transactions'] }); setForm((f) => ({ ...f, description: '', amount: '' })); },
   });
 
   const deleteMutation = useMutation({
@@ -197,35 +163,38 @@ export default function BudgetPage() {
     },
   });
 
+  const addCategoryMutation = useMutation({
+    mutationFn: (body: typeof newCat) => api.post('/budget/categories', body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['budget-categories'] }); setNewCat({ name: '', type: 'withdrawal', color: '#6366f1' }); },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/budget/categories/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['budget-categories'] }),
+  });
+
   // Month overview derived data
-  const spendTransactions = transactions.filter((t) => t.category !== 'Deposits');
+  const spendTransactions = transactions.filter((t) => !depositNames.has(t.category));
   const totalSpend = spendTransactions.reduce((sum, t) => sum + t.amount, 0);
-  const categoryTotals = CATEGORIES.filter((c) => c !== 'Deposits').map((cat) => ({
-    category: cat,
-    total: spendTransactions.filter((t) => t.category === cat).reduce((sum, t) => sum + t.amount, 0),
-  })).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+  const categoryTotals = Object.entries(
+    spendTransactions.reduce((acc, t) => { acc[t.category] = (acc[t.category] ?? 0) + t.amount; return acc; }, {} as Record<string, number>)
+  ).map(([category, total]) => ({ category, total })).sort((a, b) => b.total - a.total);
 
   // Year overview derived data
-  const yearSpend = yearTransactions.filter((t) => t.category !== 'Deposits');
+  const yearSpend = yearTransactions.filter((t) => !depositNames.has(t.category));
   const yearTotal = yearSpend.reduce((sum, t) => sum + t.amount, 0);
   const activeMonths = new Set(yearSpend.map((t) => t.date.slice(0, 7))).size;
   const monthlyData = MONTHS_SHORT.map((label, i) => {
     const mo = String(i + 1).padStart(2, '0');
-    return {
-      month: label,
-      total: yearSpend
-        .filter((t) => t.date.startsWith(`${year}-${mo}`))
-        .reduce((sum, t) => sum + t.amount, 0),
-    };
+    return { month: label, total: yearSpend.filter((t) => t.date.startsWith(`${year}-${mo}`)).reduce((sum, t) => sum + t.amount, 0) };
   });
-  const yearCategoryTotals = CATEGORIES.filter((c) => c !== 'Deposits').map((cat) => ({
-    category: cat,
-    total: yearSpend.filter((t) => t.category === cat).reduce((sum, t) => sum + t.amount, 0),
-  })).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+  const yearCategoryTotals = Object.entries(
+    yearSpend.reduce((acc, t) => { acc[t.category] = (acc[t.category] ?? 0) + t.amount; return acc; }, {} as Record<string, number>)
+  ).map(([category, total]) => ({ category, total })).sort((a, b) => b.total - a.total);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.description || !form.amount) return;
+    if (!form.description || !form.amount || !form.category) return;
     addMutation.mutate(form);
   }
 
@@ -255,7 +224,7 @@ export default function BudgetPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-white">Budget</h1>
         <div className="flex gap-1 rounded-lg border border-gray-800 p-1">
-          {(['overview', 'transactions', 'year'] as const).map((t) => (
+          {(['overview', 'transactions', 'year', 'settings'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -270,26 +239,17 @@ export default function BudgetPage() {
       </div>
 
       {/* Month selector */}
-      {tab !== 'year' && (
+      {tab !== 'year' && tab !== 'settings' && (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMonth((m) => shiftMonth(m, -1))}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-          >
+          <button onClick={() => setMonth((m) => shiftMonth(m, -1))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
             <ChevronLeft size={16} />
           </button>
           <span className="text-sm font-medium text-gray-200 w-40 text-center">{monthLabel(month)}</span>
-          <button
-            onClick={() => setMonth((m) => shiftMonth(m, 1))}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-          >
+          <button onClick={() => setMonth((m) => shiftMonth(m, 1))} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
             <ChevronRight size={16} />
           </button>
           {month !== currentMonth() && (
-            <button
-              onClick={() => setMonth(currentMonth())}
-              className="text-xs text-brand-400 hover:text-brand-300 ml-1 transition-colors"
-            >
+            <button onClick={() => setMonth(currentMonth())} className="text-xs text-brand-400 hover:text-brand-300 ml-1 transition-colors">
               This month
             </button>
           )}
@@ -299,24 +259,15 @@ export default function BudgetPage() {
       {/* Year selector */}
       {tab === 'year' && (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setYear((y) => y - 1)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-          >
+          <button onClick={() => setYear((y) => y - 1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
             <ChevronLeft size={16} />
           </button>
           <span className="text-sm font-medium text-gray-200 w-16 text-center">{year}</span>
-          <button
-            onClick={() => setYear((y) => y + 1)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-          >
+          <button onClick={() => setYear((y) => y + 1)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
             <ChevronRight size={16} />
           </button>
           {year !== new Date().getFullYear() && (
-            <button
-              onClick={() => setYear(new Date().getFullYear())}
-              className="text-xs text-brand-400 hover:text-brand-300 ml-1 transition-colors"
-            >
+            <button onClick={() => setYear(new Date().getFullYear())} className="text-xs text-brand-400 hover:text-brand-300 ml-1 transition-colors">
               This year
             </button>
           )}
@@ -361,7 +312,7 @@ export default function BudgetPage() {
                       formatter={(v: number) => [`$${v.toFixed(2)}`, 'Spent']}
                     />
                     <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                      {categoryTotals.map((c) => <Cell key={c.category} fill={CAT_COLORS[c.category] ?? '#6366f1'} />)}
+                      {categoryTotals.map((c) => <Cell key={c.category} fill={catColorMap[c.category] ?? '#6366f1'} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -382,7 +333,7 @@ export default function BudgetPage() {
                       <tr key={c.category} className="hover:bg-gray-800/50">
                         <td className="px-4 py-2.5 text-gray-300">
                           <span className="inline-flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CAT_COLORS[c.category] ?? '#6366f1' }} />
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: catColorMap[c.category] ?? '#6366f1' }} />
                             {c.category}
                           </span>
                         </td>
@@ -404,7 +355,6 @@ export default function BudgetPage() {
       {/* Transactions tab */}
       {tab === 'transactions' && (
         <div className="space-y-4">
-          {/* Manual add form */}
           <form onSubmit={handleAdd} className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
             <h3 className="text-sm font-medium text-gray-300">Add Transaction</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -419,7 +369,7 @@ export default function BudgetPage() {
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-brand-500"
               >
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {categoriesData.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             <input
@@ -430,9 +380,7 @@ export default function BudgetPage() {
             />
             <div className="flex gap-2">
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="number" step="0.01" min="0"
                 value={form.amount}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                 placeholder="Amount"
@@ -440,7 +388,7 @@ export default function BudgetPage() {
               />
               <button
                 type="submit"
-                disabled={!form.description || !form.amount || addMutation.isPending}
+                disabled={!form.description || !form.amount || !form.category || addMutation.isPending}
                 className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
               >
                 Add
@@ -453,10 +401,7 @@ export default function BudgetPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-300">Import CSV</h3>
               {csvData && (
-                <button
-                  onClick={() => { setCsvData(null); if (fileRef.current) fileRef.current.value = ''; }}
-                  className="text-gray-500 hover:text-gray-300 transition-colors"
-                >
+                <button onClick={() => { setCsvData(null); if (fileRef.current) fileRef.current.value = ''; }} className="text-gray-500 hover:text-gray-300 transition-colors">
                   <X size={14} />
                 </button>
               )}
@@ -472,8 +417,6 @@ export default function BudgetPage() {
             ) : (
               <div className="space-y-4">
                 <p className="text-xs text-gray-500">{csvData.rows.length} rows detected — map columns below</p>
-
-                {/* Column mapping */}
                 <div className="grid grid-cols-2 gap-3">
                   <MappingSelect label="Date column" field="date" headers={csvData.headers} mapping={mapping} setMapping={setMapping} />
                   <MappingSelect label="Description column" field="description" headers={csvData.headers} mapping={mapping} setMapping={setMapping} />
@@ -481,7 +424,6 @@ export default function BudgetPage() {
                   <MappingSelect label="Category column (optional)" field="category" headers={csvData.headers} mapping={mapping} setMapping={setMapping} />
                 </div>
 
-                {/* Preview */}
                 {preview.length > 0 && (
                   <div className="overflow-hidden rounded-lg border border-gray-700">
                     <div className="px-3 py-2 bg-gray-800 text-xs text-gray-400">
@@ -524,12 +466,8 @@ export default function BudgetPage() {
                   >
                     {importMutation.isPending ? 'Importing…' : `Import ${preview.length} transaction${preview.length !== 1 ? 's' : ''}`}
                   </button>
-                  {importMutation.isSuccess && (
-                    <span className="text-xs text-green-400">Imported successfully</span>
-                  )}
-                  {importMutation.isError && (
-                    <span className="text-xs text-red-400">Import failed — check the console</span>
-                  )}
+                  {importMutation.isSuccess && <span className="text-xs text-green-400">Imported successfully</span>}
+                  {importMutation.isError && <span className="text-xs text-red-400">Import failed — check the console</span>}
                 </div>
               </div>
             )}
@@ -561,16 +499,13 @@ export default function BudgetPage() {
                       <td className="px-4 py-2.5 text-gray-200">{tx.description}</td>
                       <td className="px-4 py-2.5">
                         <span className="inline-flex items-center gap-1.5 text-gray-400">
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CAT_COLORS[tx.category] ?? '#6366f1' }} />
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: catColorMap[tx.category] ?? '#6366f1' }} />
                           {tx.category}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-gray-200 text-right font-medium">${Number(tx.amount).toFixed(2)}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <button
-                          onClick={() => deleteMutation.mutate(tx.id)}
-                          className="text-gray-600 hover:text-red-400 transition-colors"
-                        >
+                        <button onClick={() => deleteMutation.mutate(tx.id)} className="text-gray-600 hover:text-red-400 transition-colors">
                           <Trash2 size={14} />
                         </button>
                       </td>
@@ -593,9 +528,7 @@ export default function BudgetPage() {
             </div>
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Monthly Avg</p>
-              <p className="text-2xl font-semibold text-white mt-1">
-                ${activeMonths > 0 ? (yearTotal / activeMonths).toFixed(2) : '0.00'}
-              </p>
+              <p className="text-2xl font-semibold text-white mt-1">${activeMonths > 0 ? (yearTotal / activeMonths).toFixed(2) : '0.00'}</p>
             </div>
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Transactions</p>
@@ -646,13 +579,11 @@ export default function BudgetPage() {
                       <tr key={c.category} className="hover:bg-gray-800/50">
                         <td className="px-4 py-2.5 text-gray-300">
                           <span className="inline-flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CAT_COLORS[c.category] ?? '#6366f1' }} />
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: catColorMap[c.category] ?? '#6366f1' }} />
                             {c.category}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-gray-400 text-right">
-                          {yearTransactions.filter((t) => t.category === c.category).length}
-                        </td>
+                        <td className="px-4 py-2.5 text-gray-400 text-right">{yearTransactions.filter((t) => t.category === c.category).length}</td>
                         <td className="px-4 py-2.5 text-gray-200 text-right font-medium">${c.total.toFixed(2)}</td>
                         <td className="px-4 py-2.5 text-gray-400 text-right">
                           {yearTotal > 0 ? `${((c.total / yearTotal) * 100).toFixed(1)}%` : '—'}
@@ -664,6 +595,110 @@ export default function BudgetPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Settings tab */}
+      {tab === 'settings' && (
+        <div className="space-y-6">
+          {/* Category list */}
+          <div className="rounded-xl border border-gray-800 bg-gray-900 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-800">
+              <h3 className="text-sm font-medium text-gray-300">Categories</h3>
+            </div>
+            {categoriesData.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-sm text-gray-500">No categories yet</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {categoriesData.map((c) => (
+                    <tr key={c.id} className="hover:bg-gray-800/50 group">
+                      <td className="px-4 py-2.5 text-gray-200">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: c.color }} />
+                          {c.name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          c.type === 'deposit'
+                            ? 'bg-green-500/10 text-green-400'
+                            : 'bg-red-500/10 text-red-400'
+                        }`}>
+                          {c.type === 'deposit' ? 'Deposit' : 'Withdrawal'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          onClick={() => deleteCategoryMutation.mutate(c.id)}
+                          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Add category form */}
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3">
+            <h3 className="text-sm font-medium text-gray-300">Add Category</h3>
+            <div className="flex gap-3">
+              <input
+                value={newCat.name}
+                onChange={(e) => setNewCat((c) => ({ ...c, name: e.target.value }))}
+                placeholder="Category name"
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500"
+              />
+              <div className="flex rounded-lg border border-gray-700 overflow-hidden text-sm">
+                <button
+                  type="button"
+                  onClick={() => setNewCat((c) => ({ ...c, type: 'withdrawal' }))}
+                  className={`px-3 py-2 transition-colors ${newCat.type === 'withdrawal' ? 'bg-red-500/20 text-red-400' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                  Withdrawal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewCat((c) => ({ ...c, type: 'deposit' }))}
+                  className={`px-3 py-2 transition-colors ${newCat.type === 'deposit' ? 'bg-green-500/20 text-green-400' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                  Deposit
+                </button>
+              </div>
+              <input
+                type="color"
+                value={newCat.color}
+                onChange={(e) => setNewCat((c) => ({ ...c, color: e.target.value }))}
+                className="w-10 h-10 rounded-lg border border-gray-700 bg-gray-800 cursor-pointer p-1"
+                title="Pick a color"
+              />
+              <button
+                onClick={() => { if (newCat.name.trim()) addCategoryMutation.mutate({ ...newCat, name: newCat.name.trim() }); }}
+                disabled={!newCat.name.trim() || addCategoryMutation.isPending}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
+              >
+                <Plus size={15} /> Add
+              </button>
+            </div>
+            {addCategoryMutation.isError && (
+              <p className="text-xs text-red-400">
+                {(addCategoryMutation.error as any)?.message ?? 'Failed to add category'}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

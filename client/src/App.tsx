@@ -13,6 +13,7 @@ import GroceryPage from './pages/GroceryPage';
 import SharedGroceryPage from './pages/SharedGroceryPage';
 import MealPlanPage from './pages/MealPlanPage';
 import KitchenPage from './pages/KitchenPage';
+import LibraryPage from './pages/LibraryPage';
 import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/grocery" element={<GroceryPage />} />
               <Route path="/meals" element={<MealPlanPage />} />
               <Route path="/kitchen" element={<KitchenPage />} />
+              <Route path="/library" element={<LibraryPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
