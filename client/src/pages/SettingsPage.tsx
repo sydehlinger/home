@@ -1,11 +1,23 @@
 import { useState, useRef } from 'react';
-import { ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
-import { NAV_ITEMS, type NavItem, loadNavOrder, saveNavOrder } from '../lib/navOrder';
+import { ChevronUp, ChevronDown, GripVertical, Eye, EyeOff } from 'lucide-react';
+import {
+  NAV_ITEMS, type NavItem,
+  loadNavOrder, saveNavOrder,
+  loadHiddenNav, saveHiddenNav,
+} from '../lib/navOrder';
 
 export default function SettingsPage() {
   const [order, setOrder] = useState<NavItem[]>(() => loadNavOrder());
+  const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenNav());
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
+
+  function toggleHidden(to: string) {
+    const next = new Set(hidden);
+    if (next.has(to)) next.delete(to); else next.add(to);
+    setHidden(next);
+    saveHiddenNav(next);
+  }
 
   function move(index: number, dir: -1 | 1) {
     const next = [...order];
@@ -45,17 +57,20 @@ export default function SettingsPage() {
   function reset() {
     setOrder(NAV_ITEMS);
     saveNavOrder(null);
+    setHidden(new Set());
+    saveHiddenNav(null);
   }
 
   return (
     <div className="p-6 max-w-lg">
       <h1 className="text-xl font-semibold text-white mb-1">Settings</h1>
-      <p className="text-sm text-gray-500 mb-6">Drag or use arrows to reorder sidebar navigation items.</p>
+      <p className="text-sm text-gray-500 mb-6">Drag or use arrows to reorder sidebar navigation items. Use the eye icon to show or hide tabs.</p>
 
       <div className="rounded-xl border border-gray-800 bg-gray-900 divide-y divide-gray-800">
         {order.map((item, i) => {
           const Icon = item.icon;
           const isOver = dragOver === i;
+          const isHidden = hidden.has(item.to);
           return (
             <div
               key={item.to}
@@ -69,8 +84,15 @@ export default function SettingsPage() {
               }`}
             >
               <GripVertical size={14} className="text-gray-500 flex-shrink-0 cursor-grab active:cursor-grabbing" />
-              <Icon size={15} className="text-gray-400 flex-shrink-0" />
-              <span className="flex-1 text-sm text-gray-200">{item.label}</span>
+              <Icon size={15} className={`flex-shrink-0 ${isHidden ? 'text-gray-600' : 'text-gray-400'}`} />
+              <span className={`flex-1 text-sm ${isHidden ? 'text-gray-500 line-through' : 'text-gray-200'}`}>{item.label}</span>
+              <button
+                onClick={() => toggleHidden(item.to)}
+                className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors"
+                title={isHidden ? 'Show in sidebar' : 'Hide from sidebar'}
+              >
+                {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
               <div className="flex flex-col gap-0.5">
                 <button
                   onClick={() => move(i, -1)}
@@ -98,7 +120,7 @@ export default function SettingsPage() {
         onClick={reset}
         className="mt-4 text-xs text-gray-600 hover:text-gray-400 transition-colors"
       >
-        Reset to default order
+        Reset to defaults
       </button>
     </div>
   );

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { Plus, Check, Trash2, ChevronDown } from 'lucide-react';
+import { Plus, Check, Trash2, ChevronDown, CornerDownRight } from 'lucide-react';
 
 export default function TasksPage() {
   const qc = useQueryClient();
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [newTask, setNewTask] = useState('');
+  const [subtaskParent, setSubtaskParent] = useState<string | null>(null);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
 
   const { data: lists = [] } = useQuery<any[]>({
     queryKey: ['taskLists'],
@@ -28,6 +30,16 @@ export default function TasksPage() {
   const addTask = useMutation({
     mutationFn: (title: string) => api.post(`/tasks/lists/${activeListId}`, { title }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks', activeListId] }); setNewTask(''); },
+  });
+
+  const addSubtask = useMutation({
+    mutationFn: ({ title, parent }: { title: string; parent: string }) =>
+      api.post(`/tasks/lists/${activeListId}`, { title, parent }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks', activeListId] });
+      setSubtaskTitle('');
+      setSubtaskParent(null);
+    },
   });
 
   const completeTask = useMutation({
@@ -106,25 +118,60 @@ export default function TasksPage() {
             }
             return ordered;
           })().map(({ task: t, indent }) => (
-            <li key={t.id} className={`flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 group${indent ? ' ml-6' : ''}`}>
-              <button
-                onClick={() => completeTask.mutate(t.id)}
-                className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-gray-600 hover:border-green-400 hover:bg-green-400/10 transition-colors"
-              >
-                <Check size={11} className="text-transparent group-hover:text-green-400" />
-              </button>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-200">{t.title}</p>
-                {t.due && <p className="text-xs text-gray-500">Due {new Date(t.due).toLocaleDateString()}</p>}
-                {t.notes && <p className="text-xs text-gray-500 truncate">{t.notes}</p>}
-              </div>
-              <button
-                onClick={() => deleteTask.mutate(t.id)}
-                className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all"
-              >
-                <Trash2 size={14} />
-              </button>
-            </li>
+            <div key={t.id}>
+              <li className={`flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 group${indent ? ' ml-6' : ''}`}>
+                <button
+                  onClick={() => completeTask.mutate(t.id)}
+                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-gray-600 hover:border-green-400 hover:bg-green-400/10 transition-colors"
+                >
+                  <Check size={11} className="text-transparent group-hover:text-green-400" />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-200">{t.title}</p>
+                  {t.due && <p className="text-xs text-gray-500">Due {new Date(t.due).toLocaleDateString()}</p>}
+                  {t.notes && <p className="text-xs text-gray-500 truncate">{t.notes}</p>}
+                </div>
+                {!indent && (
+                  <button
+                    onClick={() => {
+                      setSubtaskParent(subtaskParent === t.id ? null : t.id);
+                      setSubtaskTitle('');
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-brand-400 transition-all"
+                    title="Add subtask"
+                  >
+                    <CornerDownRight size={14} />
+                  </button>
+                )}
+                <button
+                  onClick={() => deleteTask.mutate(t.id)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+              {subtaskParent === t.id && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (subtaskTitle.trim()) addSubtask.mutate({ title: subtaskTitle.trim(), parent: t.id });
+                  }}
+                  className="ml-6 mt-1.5 flex gap-2"
+                >
+                  <input
+                    autoFocus
+                    value={subtaskTitle}
+                    onChange={(e) => setSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setSubtaskParent(null); }}
+                    placeholder="Add a subtask…"
+                    className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500"
+                  />
+                  <button type="submit" disabled={!subtaskTitle.trim()} className="flex items-center gap-1 rounded-lg bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50">
+                    <Plus size={15} />
+                  </button>
+                </form>
+              )}
+            </div>
           ))}
         </ul>
       )}

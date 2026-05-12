@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import WeatherWidget from '../components/WeatherWidget';
 import { useSidebar } from '../lib/sidebarContext';
 import { parseBook, type BookRecord } from '../lib/books';
+import { loadHiddenNav } from '../lib/navOrder';
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'] as const;
 const MEAL_LABELS: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
@@ -37,6 +38,14 @@ export default function DashboardPage() {
   const openSidebar = useSidebar();
   const today = format(new Date(), 'EEEE, MMMM d');
 
+  const [hidden, setHidden] = useState<Set<string>>(() => loadHiddenNav());
+  useEffect(() => {
+    const handler = () => setHidden(loadHiddenNav());
+    window.addEventListener('nav-order-changed', handler);
+    return () => window.removeEventListener('nav-order-changed', handler);
+  }, []);
+  const shown = (to: string) => !hidden.has(to);
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -53,15 +62,16 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Calendar} label="Upcoming events" value={events.length} to="/calendar" color="blue" />
-        <StatCard icon={CheckSquare} label="Task lists" value={taskLists.length} to="/tasks" color="green" />
-        <StatCard icon={FolderKanban} label="Active projects" value={activeProjects.length} to="/projects" color="indigo" />
-        <StatCard icon={DollarSign} label="Budget" value="View" to="/budget" color="yellow" />
-        <StatCard icon={FileText} label="Notes" value={notes.length} to="/notes" color="purple" />
-        <StatCard icon={UtensilsCrossed} label="Meal plan" value="View" to="/meals" color="orange" />
+        {shown('/calendar') && <StatCard icon={Calendar} label="Upcoming events" value={events.length} to="/calendar" color="blue" />}
+        {shown('/tasks') && <StatCard icon={CheckSquare} label="Task lists" value={taskLists.length} to="/tasks" color="green" />}
+        {shown('/projects') && <StatCard icon={FolderKanban} label="Active projects" value={activeProjects.length} to="/projects" color="indigo" />}
+        {shown('/budget') && <StatCard icon={DollarSign} label="Budget" value="View" to="/budget" color="yellow" />}
+        {shown('/notes') && <StatCard icon={FileText} label="Notes" value={notes.length} to="/notes" color="purple" />}
+        {shown('/kitchen') && <StatCard icon={UtensilsCrossed} label="Meal plan" value="View" to="/meals" color="orange" />}
       </div>
 
       {/* Currently reading */}
+      {shown('/library') && (
       <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-gray-300">Currently reading</h2>
@@ -85,9 +95,11 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Upcoming events */}
+        {shown('/calendar') && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium text-gray-300">Next up</h2>
@@ -113,8 +125,10 @@ export default function DashboardPage() {
             </ul>
           )}
         </div>
+        )}
 
         {/* Active projects */}
+        {shown('/projects') && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium text-gray-300">Active projects</h2>
@@ -138,8 +152,10 @@ export default function DashboardPage() {
             </ul>
           )}
         </div>
+        )}
 
         {/* Recent notes */}
+        {shown('/notes') && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium text-gray-300">Recent notes</h2>
@@ -170,8 +186,10 @@ export default function DashboardPage() {
             </ul>
           )}
         </div>
+        )}
 
         {/* Today's meals */}
+        {shown('/kitchen') && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium text-gray-300">Today's meals</h2>
@@ -193,6 +211,7 @@ export default function DashboardPage() {
             })}
           </ul>
         </div>
+        )}
       </div>
     </div>
   );

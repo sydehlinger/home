@@ -23,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 const STORAGE_KEY = 'nav-order';
+const HIDDEN_KEY = 'nav-hidden';
 
 export function loadNavOrder(): NavItem[] {
   try {
@@ -45,6 +46,26 @@ export function saveNavOrder(order: string[] | null) {
     localStorage.removeItem(STORAGE_KEY);
   } else {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+  }
+  window.dispatchEvent(new Event('nav-order-changed'));
+}
+
+export function loadHiddenNav(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    if (!raw) return new Set();
+    const saved: string[] = JSON.parse(raw);
+    return new Set(saved);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveHiddenNav(hidden: Set<string> | null) {
+  if (hidden === null || hidden.size === 0) {
+    localStorage.removeItem(HIDDEN_KEY);
+  } else {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
   }
   window.dispatchEvent(new Event('nav-order-changed'));
 }

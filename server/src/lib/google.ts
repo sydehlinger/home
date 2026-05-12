@@ -1,11 +1,12 @@
 import { google } from 'googleapis';
 import db from '../db';
+import { config } from './config';
 
 export function createOAuthClient() {
   return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    config.google.clientId,
+    config.google.clientSecret,
+    config.google.redirectUri
   );
 }
 

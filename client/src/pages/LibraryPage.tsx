@@ -114,6 +114,7 @@ export default function LibraryPage() {
   });
 
   const ownedBooks = books.filter(b => b.ownership === 'owned');
+  const currentlyReading = books.filter(b => b.status === 'reading');
   const counts = {
     library:  ownedBooks.length,
     tbr:      books.filter(b => b.status === 'to-read').length,
@@ -160,6 +161,48 @@ export default function LibraryPage() {
       </div>
 
       {coverMsg && <div className="mb-4 text-xs text-green-400">{coverMsg}</div>}
+
+      {currentlyReading.length > 0 && (
+        <div className="mb-6 rounded-xl border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-900/40 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <BookOpen size={14} className="text-brand-400" />
+              <h2 className="text-sm font-medium text-gray-200">Currently Reading</h2>
+              <span className="text-xs text-gray-500">{currentlyReading.length}</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {currentlyReading.map(book => (
+              <button
+                key={book.id}
+                onClick={() => setEditingBook(book)}
+                className="group flex gap-3 rounded-lg border border-gray-700/60 bg-gray-800/60 p-2.5 hover:border-brand-500/60 hover:bg-gray-800 transition-colors text-left w-72"
+              >
+                <div className="shrink-0 w-14 h-20 rounded overflow-hidden">
+                  <CoverImage src={book.cover_url} className="w-full h-full" />
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <p className="text-sm font-medium text-white truncate group-hover:text-brand-400 transition-colors">{book.title}</p>
+                  {book.author && <p className="text-xs text-gray-400 truncate">{book.author}</p>}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-1.5">
+                    {book.formats.map(fmt => {
+                      const meta = FORMATS.find(f => f.id === fmt);
+                      const Icon = meta?.icon ?? Book;
+                      return (
+                        <span key={fmt} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${FORMAT_COLORS[fmt] ?? FORMAT_COLORS.physical}`}>
+                          <Icon size={10} />
+                          {meta?.label ?? fmt}
+                        </span>
+                      );
+                    })}
+                    {book.pages && <span className="text-[10px] text-gray-500">{book.pages}p</span>}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-1 mb-4 border-b border-gray-800 flex-wrap">
         {([

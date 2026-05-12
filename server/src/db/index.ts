@@ -15,9 +15,18 @@ db.exec(`
     created_at INTEGER DEFAULT (unixepoch())
   );
 
+  CREATE TABLE IF NOT EXISTS workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#6366f1',
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
+    workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'active',
@@ -25,6 +34,16 @@ db.exec(`
     color TEXT DEFAULT '#6366f1',
     created_at INTEGER DEFAULT (unixepoch()),
     updated_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS workspace_resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT 'link',
+    title TEXT NOT NULL,
+    url TEXT,
+    content TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
   );
 
   CREATE TABLE IF NOT EXISTS project_notes (
@@ -160,5 +179,8 @@ try {
 // books: collapse ownership 'wishlist' / 'tbr' -> 'none' (TBR now derives from status, not ownership)
 // Idempotent: no-op once no rows have those legacy values.
 try { db.exec(`UPDATE books SET ownership = 'none' WHERE ownership IN ('wishlist', 'tbr')`); } catch {}
+
+// projects: workspace grouping
+try { db.exec(`ALTER TABLE projects ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL`); } catch {}
 
 export default db;

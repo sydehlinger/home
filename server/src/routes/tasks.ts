@@ -36,12 +36,13 @@ router.get('/lists/:listId', async (req, res) => {
 });
 
 router.post('/lists/:listId', async (req, res) => {
-  const { title, notes, due } = req.body;
+  const { title, notes, due, parent } = req.body;
   try {
     const auth = getAuthClientForUser(req.session.userId!);
     const tasks = google.tasks({ version: 'v1', auth });
     const { data } = await tasks.tasks.insert({
       tasklist: req.params.listId,
+      parent,
       requestBody: { title, notes, due },
     });
     res.json(data);

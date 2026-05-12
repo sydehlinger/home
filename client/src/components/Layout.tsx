@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LogOut, Settings, Menu, X, Home } from 'lucide-react';
 import { format } from 'date-fns';
-import { loadNavOrder } from '../lib/navOrder';
+import { loadNavOrder, loadHiddenNav } from '../lib/navOrder';
 import { SidebarContext } from '../lib/sidebarContext';
 import WeatherWidget from './WeatherWidget';
 
@@ -13,12 +13,15 @@ interface Props {
 
 export default function Layout({ user, children }: Props) {
   const initials = user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-  const [nav, setNav] = useState(loadNavOrder);
+  const [nav, setNav] = useState(() => loadNavOrder().filter(n => !loadHiddenNav().has(n.to)));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const handler = () => setNav(loadNavOrder());
+    const handler = () => {
+      const hidden = loadHiddenNav();
+      setNav(loadNavOrder().filter(n => !hidden.has(n.to)));
+    };
     window.addEventListener('nav-order-changed', handler);
     return () => window.removeEventListener('nav-order-changed', handler);
   }, []);
