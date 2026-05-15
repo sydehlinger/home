@@ -13,7 +13,7 @@ router.get('/:spreadsheetId', async (req, res) => {
   const range = (req.query.range as string) || 'A1:Z200';
 
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const sheets = google.sheets({ version: 'v4', auth });
 
     const [metaRes, dataRes] = await Promise.all([
@@ -37,7 +37,7 @@ router.get('/:spreadsheetId/tab/:tabName', async (req, res) => {
   const { spreadsheetId, tabName } = req.params;
 
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const sheets = google.sheets({ version: 'v4', auth });
 
     const { data } = await sheets.spreadsheets.values.get({

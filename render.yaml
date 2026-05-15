@@ -1,0 +1,34 @@
+databases:
+  - name: home-db
+    plan: free
+    databaseName: home
+    user: home
+
+services:
+  - type: web
+    name: home
+    runtime: node
+    plan: free
+    buildCommand: npm run render-build
+    startCommand: npm start
+    healthCheckPath: /auth/me
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: home-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: ALLOWED_EMAILS
+        sync: false

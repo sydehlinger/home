@@ -19,8 +19,8 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
 ];
 
-export function getAuthClientForUser(userId: number) {
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+export async function getAuthClientForUser(userId: number) {
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get<any>(userId);
   if (!user) throw new Error('User not found');
 
   const client = createOAuthClient();
@@ -32,8 +32,10 @@ export function getAuthClientForUser(userId: number) {
 
   client.on('tokens', (tokens) => {
     if (tokens.access_token) {
+      // Fire-and-forget — pg returns a promise but we don't have one to await here.
       db.prepare('UPDATE users SET access_token = ?, token_expiry = ? WHERE id = ?')
-        .run(tokens.access_token, tokens.expiry_date, userId);
+        .run(tokens.access_token, tokens.expiry_date, userId)
+        .catch((err) => console.error('Failed to refresh user token:', err));
     }
   });
 

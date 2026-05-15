@@ -5,28 +5,28 @@ import db from '../db';
 const router = Router();
 router.use(requireAuth);
 
-router.get('/', (req, res) => {
-  const recipes = db.prepare(
+router.get('/', async (req, res) => {
+  const recipes = await db.prepare(
     'SELECT * FROM recipes WHERE user_id = ? ORDER BY updated_at DESC'
-  ).all(req.session.userId!) as any[];
+  ).all<any>(req.session.userId!);
   res.json(recipes);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { title, content, tags } = req.body;
-  const result = db.prepare(
+  const result = await db.prepare(
     'INSERT INTO recipes (user_id, title, content, tags) VALUES (?, ?, ?, ?)'
   ).run(req.session.userId!, title ?? 'Untitled Recipe', content ?? '', tags ?? '[]');
-  res.json(db.prepare('SELECT * FROM recipes WHERE id = ?').get(result.lastInsertRowid));
+  res.json(await db.prepare('SELECT * FROM recipes WHERE id = ?').get(result.lastInsertRowid));
 });
 
-router.patch('/:id', (req, res) => {
-  const recipe = db.prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.session.userId!) as any;
+router.patch('/:id', async (req, res) => {
+  const recipe = await db.prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?')
+    .get<any>(req.params.id, req.session.userId!);
   if (!recipe) { res.status(404).json({ error: 'Not found' }); return; }
 
   const { title, content, tags } = req.body;
-  db.prepare(`
+  await db.prepare(`
     UPDATE recipes SET
       title = COALESCE(?, title),
       content = COALESCE(?, content),
@@ -35,15 +35,15 @@ router.patch('/:id', (req, res) => {
     WHERE id = ?
   `).run(title ?? null, content ?? null, tags ?? null, req.params.id);
 
-  res.json(db.prepare('SELECT * FROM recipes WHERE id = ?').get(req.params.id));
+  res.json(await db.prepare('SELECT * FROM recipes WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/:id', (req, res) => {
-  const recipe = db.prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.session.userId!) as any;
+router.delete('/:id', async (req, res) => {
+  const recipe = await db.prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?')
+    .get<any>(req.params.id, req.session.userId!);
   if (!recipe) { res.status(404).json({ error: 'Not found' }); return; }
 
-  db.prepare('DELETE FROM recipes WHERE id = ?').run(req.params.id);
+  await db.prepare('DELETE FROM recipes WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 

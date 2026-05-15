@@ -9,7 +9,7 @@ router.use(requireAuth);
 
 router.get('/events', async (req, res) => {
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const calendar = google.calendar({ version: 'v3', auth });
 
     const now = new Date();
@@ -46,7 +46,7 @@ router.get('/events', async (req, res) => {
 router.post('/events', async (req, res) => {
   const { summary, description, start, end, allDay } = req.body;
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const calendar = google.calendar({ version: 'v3', auth });
 
     const event: any = {
@@ -66,7 +66,7 @@ router.post('/events', async (req, res) => {
 
 router.delete('/events/:id', async (req, res) => {
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const calendar = google.calendar({ version: 'v3', auth });
     await calendar.events.delete({ calendarId: 'primary', eventId: req.params.id });
     res.json({ ok: true });

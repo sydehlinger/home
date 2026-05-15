@@ -9,7 +9,7 @@ router.use(requireAuth);
 
 router.get('/lists', async (req, res) => {
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const tasks = google.tasks({ version: 'v1', auth });
     const { data } = await tasks.tasklists.list({ maxResults: 20 });
     res.json(data.items ?? []);
@@ -21,7 +21,7 @@ router.get('/lists', async (req, res) => {
 
 router.get('/lists/:listId', async (req, res) => {
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const tasks = google.tasks({ version: 'v1', auth });
     const { data } = await tasks.tasks.list({
       tasklist: req.params.listId,
@@ -38,7 +38,7 @@ router.get('/lists/:listId', async (req, res) => {
 router.post('/lists/:listId', async (req, res) => {
   const { title, notes, due, parent } = req.body;
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const tasks = google.tasks({ version: 'v1', auth });
     const { data } = await tasks.tasks.insert({
       tasklist: req.params.listId,
@@ -54,7 +54,7 @@ router.post('/lists/:listId', async (req, res) => {
 
 router.patch('/lists/:listId/:taskId/complete', async (req, res) => {
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const tasks = google.tasks({ version: 'v1', auth });
     const { data } = await tasks.tasks.patch({
       tasklist: req.params.listId,
@@ -70,7 +70,7 @@ router.patch('/lists/:listId/:taskId/complete', async (req, res) => {
 
 router.delete('/lists/:listId/:taskId', async (req, res) => {
   try {
-    const auth = getAuthClientForUser(req.session.userId!);
+    const auth = await getAuthClientForUser(req.session.userId!);
     const tasks = google.tasks({ version: 'v1', auth });
     await tasks.tasks.delete({ tasklist: req.params.listId, task: req.params.taskId });
     res.json({ ok: true });

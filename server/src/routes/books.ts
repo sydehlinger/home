@@ -6,19 +6,19 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', (req, res) => {
-  const books = db.prepare(
+router.get('/', async (req, res) => {
+  const books = await db.prepare(
     'SELECT * FROM books WHERE user_id = ? ORDER BY created_at DESC'
-  ).all(req.session.userId!) as any[];
+  ).all<any>(req.session.userId!);
   res.json(books);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { title, author, isbn, formats, status, cover_url, rating, pages, notes, date_finished, ownership } = req.body;
   if (!title) { res.status(400).json({ error: 'Title required' }); return; }
   const effectiveStatus = status ?? 'to-read';
   const ownershipDefault = 'owned';
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO books (user_id, title, author, isbn, formats, status, cover_url, rating, pages, notes, date_finished, ownership)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
@@ -35,17 +35,17 @@ router.post('/', (req, res) => {
     date_finished ?? null,
     normalizeOwnership(ownership) ?? ownershipDefault,
   );
-  res.json(db.prepare('SELECT * FROM books WHERE id = ?').get(result.lastInsertRowid));
+  res.json(await db.prepare('SELECT * FROM books WHERE id = ?').get(result.lastInsertRowid));
 });
 
-router.patch('/:id', (req, res) => {
-  const book = db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.session.userId!) as any;
+router.patch('/:id', async (req, res) => {
+  const book = await db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?')
+    .get<any>(req.params.id, req.session.userId!);
 
   if (!book) { res.status(404).json({ error: 'Not found' }); return; }
 
   const { title, author, isbn, formats, status, cover_url, rating, pages, notes, date_finished, ownership } = req.body;
-  db.prepare(`
+  await db.prepare(`
     UPDATE books SET
       title = COALESCE(?, title),
       author = COALESCE(?, author),
@@ -66,16 +66,16 @@ router.patch('/:id', (req, res) => {
     normalizeOwnership(ownership) ?? null,
     req.params.id,
   );
-  res.json(db.prepare('SELECT * FROM books WHERE id = ?').get(req.params.id));
+  res.json(await db.prepare('SELECT * FROM books WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/:id', (req, res) => {
-  const book = db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.session.userId!) as any;
+router.delete('/:id', async (req, res) => {
+  const book = await db.prepare('SELECT id FROM books WHERE id = ? AND user_id = ?')
+    .get<any>(req.params.id, req.session.userId!);
 
   if (!book) { res.status(404).json({ error: 'Not found' }); return; }
 
-  db.prepare('DELETE FROM books WHERE id = ?').run(req.params.id);
+  await db.prepare('DELETE FROM books WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -103,27 +103,26 @@ router.get('/search', async (req, res) => {
 });
 
 // Backfill OpenLibrary covers for books with ISBN but no cover
-router.post('/backfill-covers', (req, res) => {
-  const rows = db.prepare(
+router.post('/backfill-covers', async (req, res) => {
+  const rows = await db.prepare(
     `SELECT id, isbn FROM books WHERE user_id = ? AND (cover_url IS NULL OR cover_url = '') AND isbn IS NOT NULL AND isbn != ''`
-  ).all(req.session.userId!) as { id: number; isbn: string }[];
+  ).all<{ id: number; isbn: string }>(req.session.userId!);
 
-  const update = db.prepare('UPDATE books SET cover_url = ?, updated_at = unixepoch() WHERE id = ?');
   let updated = 0;
-  const tx = db.transaction(() => {
+  await db.transaction(async (tx) => {
+    const update = tx.prepare('UPDATE books SET cover_url = ?, updated_at = unixepoch() WHERE id = ?');
     for (const r of rows) {
       const digits = r.isbn.replace(/[^0-9X]/gi, '');
       if (digits.length < 10) continue;
-      update.run(`https://covers.openlibrary.org/b/isbn/${digits}-M.jpg?default=false`, r.id);
+      await update.run(`https://covers.openlibrary.org/b/isbn/${digits}-M.jpg?default=false`, r.id);
       updated++;
     }
   });
-  tx();
   res.json({ updated });
 });
 
 // Import StoryGraph CSV export
-router.post('/import', (req, res) => {
+router.post('/import', async (req, res) => {
   const csv = String(req.body?.csv ?? '');
   if (!csv.trim()) { res.status(400).json({ error: 'No CSV provided' }); return; }
 
@@ -145,21 +144,22 @@ router.post('/import', (req, res) => {
 
   if (titleI < 0) { res.status(400).json({ error: 'CSV missing Title column' }); return; }
 
-  const insert = db.prepare(`
-    INSERT INTO books (user_id, title, author, isbn, formats, status, rating, notes, date_finished, cover_url, ownership)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  // Dedupe: prefer ISBN match, fall back to title+author. Re-import updates ownership/status/rating only.
-  const findByIsbn = db.prepare('SELECT id FROM books WHERE user_id = ? AND isbn = ? AND isbn != ""');
-  const findByTitleAuthor = db.prepare('SELECT id FROM books WHERE user_id = ? AND lower(title) = lower(?) AND lower(COALESCE(author, "")) = lower(COALESCE(?, ""))');
-  const updateExisting = db.prepare(`
-    UPDATE books SET ownership = ?, status = ?, rating = COALESCE(?, rating), updated_at = unixepoch() WHERE id = ?
-  `);
-
   let imported = 0;
   let updated = 0;
-  const tx = db.transaction(() => {
+
+  await db.transaction(async (tx) => {
+    const insert = tx.prepare(`
+      INSERT INTO books (user_id, title, author, isbn, formats, status, rating, notes, date_finished, cover_url, ownership)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Dedupe: prefer ISBN match, fall back to title+author. Re-import updates ownership/status/rating only.
+    const findByIsbn = tx.prepare(`SELECT id FROM books WHERE user_id = ? AND isbn = ? AND isbn != ''`);
+    const findByTitleAuthor = tx.prepare(`SELECT id FROM books WHERE user_id = ? AND lower(title) = lower(?) AND lower(COALESCE(author, '')) = lower(COALESCE(?, ''))`);
+    const updateExisting = tx.prepare(`
+      UPDATE books SET ownership = ?, status = ?, rating = COALESCE(?, rating), updated_at = unixepoch() WHERE id = ?
+    `);
+
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       const title = (row[titleI] ?? '').trim();
@@ -194,18 +194,17 @@ router.post('/import', (req, res) => {
       const ownedRaw = ownedI >= 0 ? (row[ownedI] ?? '').trim().toLowerCase() : '';
       const ownership: string = ownedRaw === 'yes' ? 'owned' : 'none';
 
-      // Dedupe check
       let existing: { id: number } | undefined;
-      if (isbn) existing = findByIsbn.get(req.session.userId!, isbn) as any;
-      if (!existing) existing = findByTitleAuthor.get(req.session.userId!, title, author) as any;
+      if (isbn) existing = await findByIsbn.get<{ id: number }>(req.session.userId!, isbn);
+      if (!existing) existing = await findByTitleAuthor.get<{ id: number }>(req.session.userId!, title, author);
 
       if (existing) {
-        updateExisting.run(ownership, status, ratingClean, existing.id);
+        await updateExisting.run(ownership, status, ratingClean, existing.id);
         updated++;
         continue;
       }
 
-      insert.run(
+      await insert.run(
         req.session.userId!,
         title,
         author,
@@ -221,7 +220,6 @@ router.post('/import', (req, res) => {
       imported++;
     }
   });
-  tx();
 
   res.json({ imported, updated });
 });

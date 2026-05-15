@@ -6,16 +6,16 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', (req, res) => {
-  const packages = db.prepare(
+router.get('/', async (req, res) => {
+  const packages = await db.prepare(
     'SELECT * FROM packages WHERE user_id = ? ORDER BY created_at DESC'
-  ).all(req.session.userId!) as any[];
+  ).all<any>(req.session.userId!);
   res.json(packages);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { tracking_number, carrier, label, status, expected_delivery } = req.body;
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO packages (user_id, tracking_number, carrier, label, status, expected_delivery)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(
@@ -26,21 +26,17 @@ router.post('/', (req, res) => {
     status ?? 'pending',
     expected_delivery ?? null,
   );
-  res.json(db.prepare('SELECT * FROM packages WHERE id = ?').get(result.lastInsertRowid));
+  res.json(await db.prepare('SELECT * FROM packages WHERE id = ?').get(result.lastInsertRowid));
 });
 
-router.patch('/:id', (req, res) => {
+router.patch('/:id', async (req, res) => {
   const { status, label, expected_delivery } = req.body;
-  const pkg = db.prepare('SELECT id FROM packages WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.session.userId!) as any;
+  const pkg = await db.prepare('SELECT id FROM packages WHERE id = ? AND user_id = ?')
+    .get<any>(req.params.id, req.session.userId!);
 
   if (!pkg) { res.status(404).json({ error: 'Not found' }); return; }
 
-  const delivered_at = status === 'delivered'
-    ? db.prepare('SELECT delivered_at FROM packages WHERE id = ?').get(req.params.id) as any
-    : null;
-
-  db.prepare(`
+  await db.prepare(`
     UPDATE packages SET
       status = COALESCE(?, status),
       label = COALESCE(?, label),
@@ -49,16 +45,16 @@ router.patch('/:id', (req, res) => {
     WHERE id = ?
   `).run(status ?? null, label ?? null, expected_delivery ?? null, status ?? '', req.params.id);
 
-  res.json(db.prepare('SELECT * FROM packages WHERE id = ?').get(req.params.id));
+  res.json(await db.prepare('SELECT * FROM packages WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/:id', (req, res) => {
-  const pkg = db.prepare('SELECT id FROM packages WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.session.userId!) as any;
+router.delete('/:id', async (req, res) => {
+  const pkg = await db.prepare('SELECT id FROM packages WHERE id = ? AND user_id = ?')
+    .get<any>(req.params.id, req.session.userId!);
 
   if (!pkg) { res.status(404).json({ error: 'Not found' }); return; }
 
-  db.prepare('DELETE FROM packages WHERE id = ?').run(req.params.id);
+  await db.prepare('DELETE FROM packages WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 

@@ -54,17 +54,17 @@ router.get('/google/callback', async (req, res) => {
       return;
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE google_id = ?').get(profile.id!) as any;
+    const existing = await db.prepare('SELECT id FROM users WHERE google_id = ?').get<any>(profile.id!);
 
     let userId: number;
     if (existing) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE users SET access_token = ?, refresh_token = COALESCE(?, refresh_token),
         token_expiry = ?, name = ?, email = ? WHERE id = ?
       `).run(tokens.access_token, tokens.refresh_token, tokens.expiry_date, profile.name, profile.email, existing.id);
       userId = existing.id;
     } else {
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO users (google_id, email, name, access_token, refresh_token, token_expiry)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(profile.id!, profile.email!, profile.name!, tokens.access_token, tokens.refresh_token, tokens.expiry_date);
@@ -79,12 +79,12 @@ router.get('/google/callback', async (req, res) => {
   }
 });
 
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   if (!req.session.userId) {
     res.json({ user: null });
     return;
   }
-  const user = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.session.userId) as any;
+  const user = await db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.session.userId);
   res.json({ user });
 });
 

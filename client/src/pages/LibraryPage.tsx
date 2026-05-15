@@ -445,7 +445,7 @@ function BookCard({ book, onUpdate, onEdit, onDelete }: {
 function BookModal({ mode, initial, onSubmit, onClose, pending }: {
   mode: 'add' | 'edit';
   initial?: BookRecord;
-  onSubmit: (b: object) => void;
+  onSubmit: (b: Record<string, unknown>) => void;
   onClose: () => void;
   pending: boolean;
 }) {

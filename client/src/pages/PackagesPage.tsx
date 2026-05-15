@@ -53,12 +53,12 @@ export default function PackagesPage() {
   });
 
   const addMutation = useMutation({
-    mutationFn: (body: object) => api('', { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
+    mutationFn: (body: Record<string, unknown>) => api('', { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['packages'] }); setShowForm(false); setForm({ tracking_number: '', carrier: 'usps', label: '', expected_delivery: '' }); },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...body }: { id: number } & object) =>
+    mutationFn: ({ id, ...body }: { id: number } & Record<string, unknown>) =>
       api(`/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['packages'] }),
   });
